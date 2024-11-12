@@ -186,16 +186,21 @@ QUESTION
             )
 
             try:
-                agent_action = json.loads(assistant_reply)
+                # Attempt to extract the JSON object from the assistant's reply
+                start_index = assistant_reply.find("{")
+                end_index = assistant_reply.rfind("}") + 1
+                json_str = assistant_reply[start_index:end_index]
+                agent_action = json.loads(json_str)
                 validated_response = AgentAction.model_validate(agent_action)
                 return validated_response
             except (json.JSONDecodeError, ValidationError) as e:
                 error_msg = self.format_message(f"Validation error on attempt {attempt + 1}: {e}", "ERROR", 0)
+                print(f"Assistant reply on attempt {attempt + 1}:\n{assistant_reply}\n")
                 self.context += error_msg
                 # Provide feedback to the assistant about the error
                 agent_template += (
-                    "\n\nERROR >> The response is not valid JSON or does not follow the expected format."
-                    "Please ensure the response is in the correct format."
+                    "\n\nERROR >> The previous response was not valid JSON or did not follow the expected format."
+                    " Please respond with a valid JSON object matching the required format."
                 )
                 continue
 
@@ -219,7 +224,7 @@ QUESTION
             except Exception as e:
                 error_msg = self.format_message(str(e), "ERROR", indent_level)
                 self.context += error_msg
-                continue
+                break
 
     # Helper Methods
     def perform_reflection(self, question: str, indent_level: int):
@@ -438,11 +443,13 @@ if __name__ == "__main__":
 
     load_dotenv()
 
-    GPT_MODEL = "gpt-4o-mini"
+    GPT_MODEL = "gpt-4o"
 
     agent = AgenteReAct(model=GPT_MODEL, db_path="sql_lite_database.db", memory_path="agent_memory.json")
 
-    question = "How did sales vary between Q1 and Q2 of 2024 in percentage and amount?"
+    question = (
+        "How did sales vary between Q1 and Q2 of 2024 in percentage and amount? Use the decomposition tool once."
+    )
     agent.run_agent(question)
     agent.save_context_to_html("agent_context.html")
     agent.save_memory()

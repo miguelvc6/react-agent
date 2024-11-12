@@ -1,0 +1,20 @@
+{
+    "question_trace": [
+        "What were the total sales figures for Q1 of 2024?",
+        "What were the total sales figures for Q2 of 2024?",
+        "How do you calculate the percentage change in sales between Q1 and Q2 of 2024?",
+        "What is the formula for calculating the absolute change in sales amount between Q1 and Q2 of 2024?",
+        "What is the percentage change in sales from Q1 to Q2 of 2024?",
+        "What is the absolute change in sales amount from Q1 to Q2 of 2024?",
+        "How did sales vary between Q1 and Q2 of 2024 in percentage and amount? Use the decomposition tool once."
+    ],
+    "answer_trace": [
+        "The total sales figures for Q1 of 2024 were 5500.",
+        "The total sales figures for Q2 of 2024 were 17200.",
+        "The percentage change in sales between Q1 and Q2 of 2024 can be calculated using the formula: (\\((\\text{Sales in Q2} - \\text{Sales in Q1}) / \\text{Sales in Q1}) \\times 100\\), where Sales in Q1 and Sales in Q2 are the total sales figures for Q1 and Q2 of 2024 respectively.",
+        "The formula for calculating the absolute change in sales amount between Q1 and Q2 of 2024 is: (Sales in Q2 - Sales in Q1), where Sales in Q1 and Sales in Q2 are the total sales figures for Q1 and Q2 of 2024 respectively.",
+        "The percentage change in sales from Q1 to Q2 of 2024 is approximately 212.73%.",
+        "The absolute change in sales amount from Q1 to Q2 of 2024 is 11700.",
+        "The sales figures showed significant variation between Q1 and Q2 of 2024. The total sales for Q1 were 5500, while for Q2 they were 17200. The absolute increase in sales from Q1 to Q2 was 11700, whilst the percentage increase was approximately 212.73%."
+    ]
+}
