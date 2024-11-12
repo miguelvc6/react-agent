@@ -443,13 +443,22 @@ if __name__ == "__main__":
 
     load_dotenv()
 
-    GPT_MODEL = "gpt-4o"
+    GPT_MODEL = "gpt-4o-mini"
+    OLLAMA_MODEL = "qwen2.5-coder:7b"
 
-    agent = AgenteReAct(model=GPT_MODEL, db_path="sql_lite_database.db", memory_path="agent_memory.json")
+    SELECTED_MODEL = OLLAMA_MODEL
 
-    question = (
-        "How did sales vary between Q1 and Q2 of 2024 in percentage and amount? Use the decomposition tool once."
-    )
-    agent.run_agent(question)
-    agent.save_context_to_html("agent_context.html")
-    agent.save_memory()
+    if SELECTED_MODEL == GPT_MODEL:
+        agent = AgenteReAct(model=SELECTED_MODEL, db_path="sql_lite_database.db", memory_path="agent_memory_gpt.json")
+        question = "How did sales vary between Q1 and Q2 of 2024 in percentage and amount?"
+        agent.run_agent(question)
+        agent.save_context_to_html("agent_context_gpt.html")
+        agent.save_memory()
+
+    elif SELECTED_MODEL == OLLAMA_MODEL:
+        agent = AgenteReAct(
+            model=SELECTED_MODEL, db_path="sql_lite_database.db", memory_path="agent_memory_ollama.json"
+        )
+        simpler_question = "How many orders were there in 2024?"
+        agent.run_agent(simpler_question)
+        agent.save_context_to_html("agent_context_ollama.html")
