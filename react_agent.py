@@ -91,7 +91,7 @@ EXAMPLES:
 4. Final answer:
 {
   "request": "final_answer",
-  "argument": "Sales varied by 15% between Q1 and Q2 of 2024."
+  "argument": "There were a total of 305 orders in 2024."
 }
 """
 
@@ -101,10 +101,18 @@ class UnifiedChatAPI:
         self.model = model
         if openai_api_key or os.getenv("OPENAI_API_KEY"):
             self.api_key = openai_api_key or os.getenv("OPENAI_API_KEY")
+            self.client = openai.OpenAI(api_key=self.api_key)
+        else:
+            self.client = None
+        self.api = self._determine_api()
 
-    def set_api(self, api):
-        """Sets the API to either 'openai' or 'ollama'."""
-        self.api = api.lower()
+    def _determine_api(self):
+        """Determine the API based on the model name."""
+        # If the model is in openai_models, use OpenAI API
+        if self.model.startswith("gpt-") or self.model.startswith("o1-"):
+            return "openai"
+        else:
+            return "ollama"
 
     def chat(self, messages):
         """Wrapper for chat API. Switches between OpenAI and Ollama APIs based on configuration."""
@@ -116,7 +124,7 @@ class UnifiedChatAPI:
             raise ValueError("Unsupported API. Please set the API to 'openai' or 'ollama'.")
 
     def _openai_chat(self, messages):
-        response = openai.ChatCompletion.create(model=self.model, messages=messages, api_key=self.api_key)
+        response = self.client.chat.completions.create(model=self.model, messages=messages)
         return response.choices[0].message.content
 
     def _ollama_chat(self, messages):
@@ -161,6 +169,7 @@ class AgenteReAct:
     def __init__(self, model="gpt-4o-mini", db_path="./sql_lite_database.db", memory_path="agent_memory.json"):
         """Initialize AgentCore with database path."""
         self.model = model
+        self.client = UnifiedChatAPI(model=self.model)
         self.memory = SimpleMemory()
         self.context = ""
         self.db_path = db_path
@@ -207,7 +216,7 @@ class AgenteReAct:
             )
 
     # Agent Reflections
-    def reflection(self, question: str) -> dict:
+    def reflection(self, question: str) -> str:
         """Perform an agent reflection."""
 
         if not self.context:
@@ -215,47 +224,43 @@ class AgenteReAct:
         else:
             context = self.context
         agent_template = f"""CONTEXTUAL INFORMATION
-        {context}
+{context}
 
-        QUESTION
-        {question}"""
+QUESTION
+{question}"""
 
-        agent_reflection = client.chat.completions.create(
-            model=self.model,
-            messages=[
+        assistant_reply = self.client.chat(
+            [
                 {"role": "system", "content": REFLECTION_SYSTEM_PROMPT},
                 {"role": "user", "content": agent_template},
-            ],
+            ]
         )
-        return agent_reflection.choices[0].message.content
+        return assistant_reply
 
     # Agent Action
-    def action(self, question: str, recursion=False, max_retrials: int = 3) -> dict:
+    def action(self, question: str, recursion=False, max_retrials: int = 3) -> AgentAction:
         """Perform an agent action."""
         action_system_prompt = (
             ACTION_SYSTEM_PROMPT_01 + (not recursion) * ACTION_SYSTEM_PROMPT_DECOMPOSITION + ACTION_SYSTEM_PROMPT_02
         )
 
         if not self.context:
-            context = "<No se han hecho preguntas anteriores>"
+            context = "<No previous questions have been asked>"
         else:
             context = self.context
         agent_template = f"""CONTEXTUAL INFORMATION
-        {context}
+{context}
 
-        QUESTION
-        {question}"""
+QUESTION
+{question}"""
 
         for attempt in range(max_retrials):
-            agent_action_response = client.chat.completions.create(
-                model=self.model,
-                messages=[
+            assistant_reply = self.client.chat(
+                [
                     {"role": "system", "content": action_system_prompt},
                     {"role": "user", "content": agent_template},
-                ],
+                ]
             )
-
-            assistant_reply = agent_action_response.choices[0].message.content
 
             try:
                 agent_action = json.loads(assistant_reply)
@@ -351,7 +356,7 @@ class AgenteReAct:
 
                         # Answer subquestions recursively
                         answers = []
-                        for subquestion in result.sub_preguntas:
+                        for subquestion in result.sub_questions:
                             subq_msg = (
                                 f"{indent}{self.color_text('SUBQUESTION >> ', 'SUBQUESTION')}"
                                 f"{textwrap.fill(subquestion, width=100)}\n".replace(
@@ -361,16 +366,16 @@ class AgenteReAct:
                             self.context += subq_msg
                             self.run_agent(subquestion, recursion=True, indent_level=min(indent_level + 1, 3))
 
-                            # Extract answer from contextcm
+                            # Extract answer from context
                             if "FINAL ANSWER" in self.context:
                                 subquestion_answer = self.context.split("FINAL ANSWER >> ")[-1].strip().split("\n")[0]
                                 answers.append(subquestion_answer)
 
                         # Summarize answers
-                        summary = self.answers_summarizer(result.sub_preguntas, answers)
+                        summary = self.answers_summarizer(result.sub_questions, answers)
                         self.context += (
                             f"GENERATED RESPONSE TO SUBQUESTIONS >> "
-                            f"{textwrap.fill(summary.resumen, width=100)}\n".replace(
+                            f"{textwrap.fill(summary.summary, width=100)}\n".replace(
                                 "\n", "\n" + (indent_level + 1) * "\t"
                             )[: -(indent_level + 1)]
                         )
@@ -409,7 +414,7 @@ class AgenteReAct:
                     # Append error observation to context
                     error_msg = (
                         f"{indent}{self.color_text('OBSERVATION >> ', 'OBSERVATION')}"
-                        f"{textwrap.fill(f'Error ejecutando {step.request}: {str(e)}', width=100)}\n".replace(
+                        f"{textwrap.fill(f'Error executing {step.request}: {str(e)}', width=100)}\n".replace(
                             "\n", "\n" + (indent_level + 1) * "\t"
                         )[: -(indent_level + 1)]
                     )
@@ -451,55 +456,59 @@ class AgenteReAct:
         print(f"Context saved to {filename}")
 
     # Assistants
-    def decompose_question(self, question: str, max_retrials: int = 3) -> dict:
+    def decompose_question(self, question: str, max_retrials: int = 3) -> DecomposedQuestion:
         """Decompose a complex question into simpler parts."""
         decomp_system_prompt = """GENERAL INSTRUCTIONS
-        You are an expert in the domain of the following question. Your task is to decompose a complex question into simpler parts.
-        
-        RESPONSE FORMAT
-        {"sub_questions":["<FILL>"]}"""
+You are an expert in the domain of the following question. Your task is to decompose a complex question into simpler parts.
+
+RESPONSE FORMAT
+{"sub_questions":["<FILL>"]}"""
 
         for attempt in range(max_retrials):
-            answer = client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "system", "content": decomp_system_prompt}, {"role": "user", "content": question}],
+            assistant_reply = self.client.chat(
+                [
+                    {"role": "system", "content": decomp_system_prompt},
+                    {"role": "user", "content": question},
+                ]
             )
-            response_content = json.loads(answer.choices[0].message.content)
 
             try:
+                response_content = json.loads(assistant_reply)
                 validated_response = DecomposedQuestion.model_validate(response_content)
                 return validated_response
-            except ValidationError as e:
+            except (json.JSONDecodeError, ValidationError) as e:
                 print(f"Validation error on attempt {attempt + 1}:", e)
 
         raise RuntimeError("Maximum number of retries reached without successful validation.")
 
-    def answers_summarizer(self, questions: List[str], answers: List[str], max_retrials: int = 3) -> dict:
+    def answers_summarizer(self, questions: List[str], answers: List[str], max_retrials: int = 3) -> AnswersSummary:
         """Summarize a list of answers to the decomposed questions."""
         answer_summarizer_system_prompt = """GENERAL INSTRUCTIONS
-        You are an expert in the domain of the following questions. Your task is to summarize the answers to the questions into a single response.
-        
-        RESPONSE FORMAT
-        {"summary": "<FILL>"}"""
+You are an expert in the domain of the following questions. Your task is to summarize the answers to the questions into a single response.
+
+RESPONSE FORMAT
+{"summary": "<FILL>"}"""
 
         q_and_a_prompt = "\n\n".join(
             [f"SUBQUESTION {i+1}\n{q}\nANSWER {i+1}\n{a}" for i, (q, a) in enumerate(zip(questions, answers))]
         )
 
-        answer = client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": answer_summarizer_system_prompt},
-                {"role": "user", "content": q_and_a_prompt},
-            ],
-        )
-        response_content = json.loads(answer.choices[0].message.content)
         for attempt in range(max_retrials):
+            assistant_reply = self.client.chat(
+                [
+                    {"role": "system", "content": answer_summarizer_system_prompt},
+                    {"role": "user", "content": q_and_a_prompt},
+                ]
+            )
+
             try:
+                response_content = json.loads(assistant_reply)
                 validated_response = AnswersSummary.model_validate(response_content)
                 return validated_response
-            except ValidationError as e:
+            except (json.JSONDecodeError, ValidationError) as e:
                 print(f"Validation error on attempt {attempt + 1}:", e)
+
+        raise RuntimeError("Maximum number of retries reached without successful validation.")
 
     # Tools
     def math_calculator(self, expression: str) -> float:
@@ -548,9 +557,10 @@ if __name__ == "__main__":
 
     load_dotenv()
 
-    client = openai.OpenAI()
+    GPT_MODEL = "gpt-4o-mini"
+    OLLAMA_MODEL = "qwen2.5-coder:3b"
 
-    agent = AgenteReAct(model="gpt-4o-mini", db_path="sql_lite_database.db", memory_path="agent_memory.json")
+    agent = AgenteReAct(model=GPT_MODEL, db_path="sql_lite_database.db", memory_path="agent_memory.json")
 
     question = "How did sales vary between Q1 and Q2 of 2024 in percentage and amount?"
     agent.run_agent(question)
