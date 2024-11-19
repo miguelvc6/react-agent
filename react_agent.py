@@ -95,7 +95,7 @@ class AnswersSummary(BaseModel):
 
 
 # Big Agent Class
-class AgenteReAct:
+class AgentReAct:
     """Agent class implementing the ReAct framework."""
 
     def __init__(self, model="gpt-4o-mini", db_path="./sql_lite_database.db", memory_path="agent_memory.json"):
@@ -449,14 +449,14 @@ if __name__ == "__main__":
     SELECTED_MODEL = OLLAMA_MODEL
 
     if SELECTED_MODEL == GPT_MODEL:
-        agent = AgenteReAct(model=SELECTED_MODEL, db_path="sql_lite_database.db", memory_path="agent_memory_gpt.json")
+        agent = AgentReAct(model=SELECTED_MODEL, db_path="sql_lite_database.db", memory_path="agent_memory_gpt.json")
         question = "How did sales vary between Q1 and Q2 of 2024 in percentage and amount?"
         agent.run_agent(question)
         agent.save_context_to_html("agent_context_gpt.html")
         agent.save_memory()
 
     elif SELECTED_MODEL == OLLAMA_MODEL:
-        agent = AgenteReAct(
+        agent = AgentReAct(
             model=SELECTED_MODEL, db_path="sql_lite_database.db", memory_path="agent_memory_ollama.json"
         )
         simpler_question = "How many orders were there in 2024?"
