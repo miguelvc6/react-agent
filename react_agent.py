@@ -253,7 +253,7 @@ QUESTION
         print(self.context)
         return action
 
-    def execute_action(self, action: AgentAction, question: str, recursion: bool, indent_level: int) -> Optional[str]:
+    def execute_action(self, action: AgentAction, question: str, indent_level: int) -> Optional[str]:
         """Execute the chosen action and handle the result."""
         try:
             result = None
