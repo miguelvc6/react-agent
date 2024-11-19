@@ -102,7 +102,7 @@ class AgentReAct:
         """Initialize Agent with database path and model."""
         self.model = model
         self.client = UnifiedChatAPI(model=self.model)
-        self.memory = SimpleMemory()
+        self.memory = self.load_memory()
         self.context = ""
         self.db_path = db_path
         self.conn = None
@@ -136,6 +136,14 @@ class AgentReAct:
         self._close_db()
 
     # Memory Management
+    def load_memory(self):
+        """Load the agent memory from a JSON file."""
+        if os.path.exists(self.memory_path):
+            with open(self.memory_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        else:
+            return SimpleMemory()
+
     def save_memory(self):
         """Save the agent memory to a JSON file."""
         with open(self.memory_path, "w", encoding="utf-8") as f:
