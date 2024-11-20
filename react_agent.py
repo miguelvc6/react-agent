@@ -27,7 +27,9 @@ class UnifiedChatAPI:
         self.api = self._determine_api()
         if self.api == "openai":
             if not self.api_key:
-                raise ValueError("OpenAI API key must be provided for OpenAI models.")
+                raise ValueError(
+                    "OpenAI API key must be provided for OpenAI models."
+                )
             else:
                 self.client = openai.OpenAI(api_key=self.api_key)
         elif self.api == "ollama":
@@ -47,10 +49,14 @@ class UnifiedChatAPI:
         elif self.api == "ollama":
             return self._ollama_chat(messages)
         else:
-            raise ValueError("Unsupported API. Please set the API to 'openai' or 'ollama'.")
+            raise ValueError(
+                "Unsupported API. Please set the API to 'openai' or 'ollama'."
+            )
 
     def _openai_chat(self, messages):
-        response = self.client.chat.completions.create(model=self.model, messages=messages)
+        response = self.client.chat.completions.create(
+            model=self.model, messages=messages
+        )
         return response.choices[0].message.content
 
     def _ollama_chat(self, messages):
@@ -73,7 +79,10 @@ class SimpleMemory:
         if not self.question_trace:
             return ""
         else:
-            context_lines = []
+            context_lines = [
+                "Here are the questions and answers from the previous interactions.",
+                "Use them to answer the current question if they are relevant:",
+            ]
             for q, a in zip(self.question_trace, self.answer_trace):
                 context_lines.append(f"QUESTION: {q}")
                 context_lines.append(f"ANSWER: {a}")
@@ -98,7 +107,12 @@ class AnswersSummary(BaseModel):
 class AgentReAct:
     """Agent class implementing the ReAct framework."""
 
-    def __init__(self, model="gpt-4o-mini", db_path="./sql_lite_database.db", memory_path="agent_memory.json"):
+    def __init__(
+        self,
+        model="gpt-4o-mini",
+        db_path="./sql_lite_database.db",
+        memory_path="agent_memory.json",
+    ):
         """Initialize Agent with database path and model."""
         self.model = model
         self.client = UnifiedChatAPI(model=self.model)
@@ -148,7 +162,10 @@ class AgentReAct:
         """Save the agent memory to a JSON file."""
         with open(self.memory_path, "w", encoding="utf-8") as f:
             json.dump(
-                {"question_trace": self.memory.question_trace, "answer_trace": self.memory.answer_trace},
+                {
+                    "question_trace": self.memory.question_trace,
+                    "answer_trace": self.memory.answer_trace,
+                },
                 f,
                 indent=4,
             )
@@ -172,10 +189,14 @@ QUESTION
         return assistant_reply
 
     # Agent Actions
-    def action(self, question: str, recursion=False, max_retrials: int = 3) -> AgentAction:
+    def action(
+        self, question: str, recursion=False, max_retrials: int = 3
+    ) -> AgentAction:
         """Determine the next action for the agent."""
         action_system_prompt = (
-            ACTION_SYSTEM_PROMPT_01 + (not recursion) * ACTION_SYSTEM_PROMPT_DECOMPOSITION + ACTION_SYSTEM_PROMPT_02
+            ACTION_SYSTEM_PROMPT_01
+            + (not recursion) * ACTION_SYSTEM_PROMPT_DECOMPOSITION
+            + ACTION_SYSTEM_PROMPT_02
         )
 
         context = self.context or "<No previous questions have been asked>"
@@ -202,8 +223,14 @@ QUESTION
                 validated_response = AgentAction.model_validate(agent_action)
                 return validated_response
             except (json.JSONDecodeError, ValidationError) as e:
-                error_msg = self.format_message(f"Validation error on attempt {attempt + 1}: {e}", "ERROR", 0)
-                print(f"Assistant reply on attempt {attempt + 1}:\n{assistant_reply}\n")
+                error_msg = self.format_message(
+                    f"Validation error on attempt {attempt + 1}: {e}",
+                    "ERROR",
+                    0,
+                )
+                print(
+                    f"Assistant reply on attempt {attempt + 1}:\n{assistant_reply}\n"
+                )
                 self.context += error_msg
                 # Provide feedback to the assistant about the error
                 agent_template += (
@@ -212,9 +239,13 @@ QUESTION
                 )
                 continue
 
-        raise RuntimeError("Maximum number of retries reached without successful validation.")
+        raise RuntimeError(
+            "Maximum number of retries reached without successful validation."
+        )
 
-    def run_agent(self, question: str, recursion: bool = False, indent_level: int = 0) -> str:
+    def run_agent(
+        self, question: str, recursion: bool = False, indent_level: int = 0
+    ) -> str:
         """Run the ReAct agent to answer a question."""
         if not recursion:
             self.context = self.memory.get_context()
@@ -224,7 +255,9 @@ QUESTION
             try:
                 self.perform_reflection(question, indent_level)
                 action = self.decide_action(question, recursion, indent_level)
-                result = self.execute_action(action, question, recursion, indent_level)
+                result = self.execute_action(
+                    action, question, recursion, indent_level
+                )
 
                 if result is not None:
                     return result
@@ -238,22 +271,38 @@ QUESTION
     def perform_reflection(self, question: str, indent_level: int):
         """Perform reflection and update context."""
         reflection = self.reflection(question=question)
-        reflection_msg = self.format_message(reflection.split(">> ")[1], "REFLECTION", indent_level)
+        reflection_msg = self.format_message(
+            reflection.split(">> ")[1], "REFLECTION", indent_level
+        )
         self.context += reflection_msg
 
-    def decide_action(self, question: str, recursion: bool, indent_level: int, max_retrials: int = 3) -> AgentAction:
+    def decide_action(
+        self,
+        question: str,
+        recursion: bool,
+        indent_level: int,
+        max_retrials: int = 3,
+    ) -> AgentAction:
         """Decide on the next action and update context."""
-        action = self.action(question=question, recursion=recursion, max_retrials=max_retrials)
-        action_msg = self.format_message(action.request, "ACTION", indent_level)
+        action = self.action(
+            question=question, recursion=recursion, max_retrials=max_retrials
+        )
+        action_msg = self.format_message(
+            action.request, "ACTION", indent_level
+        )
         self.context += action_msg
         if action.argument:
-            arg_msg = self.format_message(action.argument, "ARGUMENT", indent_level)
+            arg_msg = self.format_message(
+                action.argument, "ARGUMENT", indent_level
+            )
             self.context += arg_msg
         os.system("cls" if os.name == "nt" else "clear")
         print(self.context)
         return action
 
-    def execute_action(self, action: AgentAction, question: str, indent_level: int) -> Optional[str]:
+    def execute_action(
+        self, action: AgentAction, question: str, indent_level: int
+    ) -> Optional[str]:
         """Execute the chosen action and handle the result."""
         try:
             result = None
@@ -277,11 +326,17 @@ QUESTION
 
             # Append observation to context
             if result is not None:
-                obs_msg = self.format_message(str(result), "OBSERVATION", indent_level)
+                obs_msg = self.format_message(
+                    str(result), "OBSERVATION", indent_level
+                )
                 self.context += obs_msg
         except Exception as e:
             # Append error observation to context
-            error_msg = self.format_message(f"Error executing {action.request}: {str(e)}", "ERROR", indent_level)
+            error_msg = self.format_message(
+                f"Error executing {action.request}: {str(e)}",
+                "ERROR",
+                indent_level,
+            )
             self.context += error_msg
         return None  # Continue the loop
 
@@ -294,19 +349,29 @@ QUESTION
         # Answer subquestions recursively
         answers = []
         for subquestion in result.sub_questions:
-            subq_msg = self.format_message(subquestion, "SUBQUESTION", indent_level)
+            subq_msg = self.format_message(
+                subquestion, "SUBQUESTION", indent_level
+            )
             self.context += subq_msg
             # Run agent recursively
-            answer = self.run_agent(subquestion, recursion=True, indent_level=min(indent_level + 1, 3))
+            answer = self.run_agent(
+                subquestion,
+                recursion=True,
+                indent_level=min(indent_level + 1, 3),
+            )
             answers.append(answer)
 
         # Summarize answers
         summary = self.answers_summarizer(result.sub_questions, answers)
-        summary_msg = self.format_message(summary.summary, "GENERATED RESPONSE TO SUBQUESTIONS", indent_level)
+        summary_msg = self.format_message(
+            summary.summary, "GENERATED RESPONSE TO SUBQUESTIONS", indent_level
+        )
         self.context += summary_msg
 
     # Assistants
-    def decompose_question(self, question: str, max_retrials: int = 3) -> DecomposedQuestion:
+    def decompose_question(
+        self, question: str, max_retrials: int = 3
+    ) -> DecomposedQuestion:
         """Decompose a complex question into simpler parts."""
         decomp_system_prompt = """GENERAL INSTRUCTIONS
 You are an expert in the domain of the following question. Your task is to decompose a complex question into simpler parts.
@@ -324,14 +389,20 @@ RESPONSE FORMAT
 
             try:
                 response_content = json.loads(assistant_reply)
-                validated_response = DecomposedQuestion.model_validate(response_content)
+                validated_response = DecomposedQuestion.model_validate(
+                    response_content
+                )
                 return validated_response
             except (json.JSONDecodeError, ValidationError) as e:
                 print(f"Validation error on attempt {attempt + 1}: {e}")
 
-        raise RuntimeError("Maximum number of retries reached without successful validation.")
+        raise RuntimeError(
+            "Maximum number of retries reached without successful validation."
+        )
 
-    def answers_summarizer(self, questions: List[str], answers: List[str], max_retrials: int = 3) -> AnswersSummary:
+    def answers_summarizer(
+        self, questions: List[str], answers: List[str], max_retrials: int = 3
+    ) -> AnswersSummary:
         """Summarize a list of answers to the decomposed questions."""
         answer_summarizer_system_prompt = """GENERAL INSTRUCTIONS
 You are an expert in the domain of the following questions. Your task is to summarize the answers to the questions into a single response.
@@ -340,25 +411,35 @@ RESPONSE FORMAT
 {"summary": "<FILL>"}"""
 
         q_and_a_prompt = "\n\n".join(
-            [f"SUBQUESTION {i+1}\n{q}\nANSWER {i+1}\n{a}" for i, (q, a) in enumerate(zip(questions, answers))]
+            [
+                f"SUBQUESTION {i+1}\n{q}\nANSWER {i+1}\n{a}"
+                for i, (q, a) in enumerate(zip(questions, answers))
+            ]
         )
 
         for attempt in range(max_retrials):
             assistant_reply = self.client.chat(
                 [
-                    {"role": "system", "content": answer_summarizer_system_prompt},
+                    {
+                        "role": "system",
+                        "content": answer_summarizer_system_prompt,
+                    },
                     {"role": "user", "content": q_and_a_prompt},
                 ]
             )
 
             try:
                 response_content = json.loads(assistant_reply)
-                validated_response = AnswersSummary.model_validate(response_content)
+                validated_response = AnswersSummary.model_validate(
+                    response_content
+                )
                 return validated_response
             except (json.JSONDecodeError, ValidationError) as e:
                 print(f"Validation error on attempt {attempt + 1}: {e}")
 
-        raise RuntimeError("Maximum number of retries reached without successful validation.")
+        raise RuntimeError(
+            "Maximum number of retries reached without successful validation."
+        )
 
     # Tools
     def math_calculator(self, expression: str) -> Optional[float]:
@@ -373,7 +454,9 @@ RESPONSE FORMAT
     def list_sql_tables(self) -> Optional[List[str]]:
         """List all tables in the SQL database."""
         try:
-            self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+            self.cursor.execute(
+                "SELECT name FROM sqlite_master WHERE type='table';"
+            )
             result = self.cursor.fetchall()
             return [table[0] for table in result]
         except Exception as e:
@@ -402,11 +485,15 @@ RESPONSE FORMAT
             return None
 
     # Final Answer Tool
-    def handle_final_answer(self, question: str, action: AgentAction, indent_level: int):
+    def handle_final_answer(
+        self, question: str, action: AgentAction, indent_level: int
+    ):
         """Handle the final answer action."""
         # Update memory
         self.memory.add_interaction(question, action.argument)
-        final_answer_msg = self.format_message(action.argument, "FINAL ANSWER", indent_level)
+        final_answer_msg = self.format_message(
+            action.argument, "FINAL ANSWER", indent_level
+        )
         self.context += final_answer_msg
         os.system("cls" if os.name == "nt" else "clear")
         print(self.context)
@@ -417,7 +504,9 @@ RESPONSE FORMAT
         indent = "    " * indent_level
         colored_action = self.color_text(f"{action} >> ", action)
         wrapped_text = textwrap.fill(text, width=100)
-        indented_text = textwrap.indent(wrapped_text, "    " * (indent_level + 1))
+        indented_text = textwrap.indent(
+            wrapped_text, "    " * (indent_level + 1)
+        )
         return f"{indent}{colored_action}{indented_text}\n"
 
     def color_text(self, text: str, action: str) -> str:
@@ -457,7 +546,11 @@ if __name__ == "__main__":
     SELECTED_MODEL = OLLAMA_MODEL
 
     if SELECTED_MODEL == GPT_MODEL:
-        agent = AgentReAct(model=SELECTED_MODEL, db_path="sql_lite_database.db", memory_path="agent_memory_gpt.json")
+        agent = AgentReAct(
+            model=SELECTED_MODEL,
+            db_path="sql_lite_database.db",
+            memory_path="agent_memory_gpt.json",
+        )
         question = "How did sales vary between Q1 and Q2 of 2024 in percentage and amount?"
         agent.run_agent(question)
         agent.save_context_to_html("agent_context_gpt.html")
@@ -465,7 +558,9 @@ if __name__ == "__main__":
 
     elif SELECTED_MODEL == OLLAMA_MODEL:
         agent = AgentReAct(
-            model=SELECTED_MODEL, db_path="sql_lite_database.db", memory_path="agent_memory_ollama.json"
+            model=SELECTED_MODEL,
+            db_path="sql_lite_database.db",
+            memory_path="agent_memory_ollama.json",
         )
         simpler_question = "How many orders were there in 2024?"
         agent.run_agent(simpler_question)
