@@ -67,9 +67,9 @@ class UnifiedChatAPI:
 class SimpleMemory:
     """Simple in-memory storage for question and answer traces."""
 
-    def __init__(self):
-        self.question_trace = []
-        self.answer_trace = []
+    def __init__(self, question_trace: List[str] = [], answer_trace: List[str] = []):
+        self.question_trace = question_trace
+        self.answer_trace = answer_trace
 
     def add_interaction(self, question, answer):
         self.question_trace.append(question)
@@ -116,13 +116,13 @@ class AgentReAct:
         """Initialize Agent with database path and model."""
         self.model = model
         self.client = UnifiedChatAPI(model=self.model)
-        self.memory = self.load_memory()
         self.context = ""
         self.db_path = db_path
         self.conn = None
         self.cursor = None
         self._connect_db()
         self.memory_path = memory_path
+        self.memory = self.load_memory()
 
     # Database Management
     def _connect_db(self):
@@ -154,7 +154,11 @@ class AgentReAct:
         """Load the agent memory from a JSON file."""
         if os.path.exists(self.memory_path):
             with open(self.memory_path, "r", encoding="utf-8") as f:
-                return json.load(f)
+                memory = json.load(f)
+                return SimpleMemory(
+                    question_trace=memory["question_trace"],
+                    answer_trace=memory["answer_trace"],
+                )
         else:
             return SimpleMemory()
 
@@ -256,7 +260,7 @@ QUESTION
                 self.perform_reflection(question, indent_level)
                 action = self.decide_action(question, recursion, indent_level)
                 result = self.execute_action(
-                    action, question, recursion, indent_level
+                    action, question, indent_level
                 )
 
                 if result is not None:
@@ -543,7 +547,7 @@ if __name__ == "__main__":
     GPT_MODEL = "gpt-4o-mini"
     OLLAMA_MODEL = "qwen2.5-coder:7b"
 
-    SELECTED_MODEL = OLLAMA_MODEL
+    SELECTED_MODEL = GPT_MODEL
 
     if SELECTED_MODEL == GPT_MODEL:
         agent = AgentReAct(
